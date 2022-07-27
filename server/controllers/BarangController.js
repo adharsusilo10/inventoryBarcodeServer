@@ -12,9 +12,9 @@ class BarangController {
             const { search } = req.query;
             const where = {};
             if (search) {
-                Object.assign({
+                Object.assign(where, {
                     nama: {
-                        [Op.like]: `%${search}%`,
+                        [Op.iLike]: `%${search}%`,
                     },
                 });
             }

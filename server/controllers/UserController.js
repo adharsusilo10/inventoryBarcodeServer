@@ -5,6 +5,7 @@ const createError = require('http-errors');
 const { StatusCodes } = require('http-status-codes');
 const { comparePassword, hashPassword } = require("../helpers/bcrypt");
 const { generateToken } = require("../helpers/jwt");
+const { Op } = require("sequelize");
 
 class UserController {
 	static async loginUser(req, res, next) {
@@ -38,7 +39,7 @@ class UserController {
 				nama: nama,
 				username: username,
 				password: hashPassword('123456'),
-				role: 'user',
+				role: role,
 			});
 			res.status(StatusCodes.CREATED).json({ msg: 'Success' });
 		} catch (err) {
@@ -50,12 +51,20 @@ class UserController {
 			if (req.UserData.role !== 'admin') {
 				throw createError(StatusCodes.UNAUTHORIZED, 'must be an admin');
 			}
-    		const userData = await user.findAll({
-				where: {
-					role: 'user'
-				}
+			const where = {
+				role: 'helper'
+			}
+			if (req.query.search) {
+				Object.assign(where, {
+					nama: {
+							[Op.iLike]: `%${req.query.search}%`,
+					},
+			});	
+			}
+			const userData = await user.findAll({
+				where: where
 			});
-      		res.status(StatusCodes.OK).json({
+			res.status(StatusCodes.OK).json({
 				data: userData,
 			});
 		} catch (err) {
