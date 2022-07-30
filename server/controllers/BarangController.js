@@ -20,6 +20,7 @@ class BarangController {
             }
             const barangData = await barang.findAll({
                 where: where,
+                order: [['title', 'DESC'],],
             });
             res.status(StatusCodes.OK).json(barangData);
         } catch (err) {
