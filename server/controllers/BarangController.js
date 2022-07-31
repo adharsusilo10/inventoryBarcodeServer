@@ -2,7 +2,8 @@ const createHttpError = require('http-errors');
 const { StatusCodes } = require('http-status-codes');
 const QRCode = require('qrcode');
 const {
-    barang
+    barang,
+    barang_confirm,
 } = require('../models');
 const { Op } = require("sequelize");
 
@@ -20,7 +21,7 @@ class BarangController {
             }
             const barangData = await barang.findAll({
                 where: where,
-                order: [['title', 'DESC'],],
+                order: [['nama', 'ASC']],
             });
             res.status(StatusCodes.OK).json(barangData);
         } catch (err) {
@@ -51,14 +52,13 @@ class BarangController {
                 }
             });
             if (!barangData) throw createHttpError(StatusCodes.NOT_FOUND, 'barang tidak ditemukan');
-            await barang.update({
-                jumlah_masuk: Number(barangData.jumlah_masuk) + 1,
-                total: Number(barangData.total) + 1, 
-            }, {
-                where: {
-                    id: barangId,
-                }
-            })
+            await barang_confirm.create({
+                user_id: req.UserData.id,
+                barang_id: barangId,
+                type: 'masuk',
+                jumlah: 1,
+                status: 'unconfirmed'
+            });
             res.status(StatusCodes.OK).json({ msg: 'Success' });
         } catch (err) {
             next(err);
@@ -74,12 +74,113 @@ class BarangController {
                 }
             });
             if (!barangData) throw createHttpError(StatusCodes.NOT_FOUND, 'barang tidak ditemukan');
-            await barang.update({
-                jumlah_keluar: Number(barangData.jumlah_keluar) + 1,
-                total: Number(barangData.total) - 1, 
+            await barang_confirm.create({
+                user_id: req.UserData.id,
+                barang_id: barangId,
+                type: 'keluar',
+                jumlah: 1,
+                status: 'unconfirmed'
+            });
+            res.status(StatusCodes.OK).json({ msg: 'Success' });
+        } catch (err) {
+            next(err);
+        }
+    }
+    static async listToConfirm(req, res, next) {
+        try {
+            if (req.UserData.role !== 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            const { search } = req.query;
+            const where = {};
+            if (search) {
+                Object.assign(where, {
+                    nama: {
+                        [Op.iLike]: `%${search}%`,
+                    },
+                });
+            }
+            const barangData = await barang.findAll({
+                where: where,
+                order: [['nama', 'ASC']],
+            });
+            let dataConfirm = await Promise.all(
+                barangData.map(async (barang) => {
+                    const confirmList = await barang_confirm.findAll({
+                        where: {
+                            barang_id: barang.id,
+                            status: 'unconfirmed',
+                        },
+                    });
+                    return {
+                        dataBarang: barang,
+                        dataConfirm: confirmList,
+                    };
+                }),
+            );
+            dataConfirm = dataConfirm.filter((barang) => barang.dataConfirm.length !== 0).map((data) => {
+                const dataConfirmMasuk = data.dataConfirm.filter((barang) => barang.type === 'masuk');
+                const dataConfirmKeluar = data.dataConfirm.filter((barang) => barang.type === 'keluar');
+                return {
+                    dataBarang: data.dataBarang,
+                    dataConfirmMasuk: dataConfirmMasuk,
+                    dataConfirmKeluar: dataConfirmKeluar,
+                }
+            });
+            res.status(StatusCodes.OK).json(dataConfirm);
+        } catch (err) {
+            next(err);
+        }
+    }
+    static async confirmBarang(req, res, next) {
+        try {
+            if (req.UserData.role !== 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            let { isConfirm, barang_id, type } = req.body;
+            isConfirm = JSON.parse(isConfirm);
+            if (!barang_id || !type) throw createHttpError(StatusCodes.BAD_REQUEST, 'All fields required');
+            if (type !== 'masuk' && type !== 'keluar') throw createHttpError(StatusCodes.BAD_REQUEST, 'wrong type');
+            const barangData = await barang.findOne({
+                where: {
+                    id: barang_id,
+                },
+            });
+            if (!barangData) throw createHttpError(StatusCodes.NOT_FOUND, 'barang not found');
+            if (isConfirm === true) {
+                const confirmData = await barang_confirm.findAll({
+                    where: {
+                        barang_id: barang_id,
+                        type: type,
+                        status: 'unconfirmed',
+                    }
+                });
+                if (confirmData.length > 0) {
+                    let jumlahProduk = confirmData.length;
+                    if (type === 'masuk') {
+                        await barang.update({
+                            jumlah_masuk: barangData.jumlah_masuk += jumlahProduk,
+                            total: barangData.total += jumlahProduk,
+                        }, {
+                            where: {
+                                id: barang_id,
+                            },
+                        });
+                    } else if (type === 'keluar') {
+                        await barang.update({
+                            jumlah_keluar: barangData.jumlah_keluar += jumlahProduk,
+                            total: barangData.total -= jumlahProduk,
+                        }, {
+                            where: {
+                                id: barang_id,
+                            },
+                        });
+                    }
+                }
+            }
+            await barang_confirm.update({
+                status: isConfirm === true ? 'approved' : 'rejected'
             }, {
                 where: {
-                    id: barangId,
+                    barang_id: barang_id,
+                    type: type,
+                    status: 'unconfirmed',
                 }
             })
             res.status(StatusCodes.OK).json({ msg: 'Success' });

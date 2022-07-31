@@ -6,5 +6,7 @@ router.get('/list', BarangController.listBarang );
 router.get('/single/:barangId', BarangController.getOneBarang);
 router.put('/masuk/:barangId', authentication, BarangController.masukBarang);
 router.put('/keluar/:barangId', authentication, BarangController.keluarBarang);
+router.get('/direktur/list', authentication, BarangController.listToConfirm);
+router.put('/direktur/confirm', authentication, BarangController.confirmBarang);
 
 module.exports = router;
