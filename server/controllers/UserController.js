@@ -134,9 +134,9 @@ class UserController {
 					id: req.UserData.id,
 				},
 			});
-			if (userData.role === 'admin') {
-				throw createError(StatusCodes.UNAUTHORIZED, 'role admin cant be edited');
-			}
+			// if (userData.role === 'admin') {
+			// 	throw createError(StatusCodes.UNAUTHORIZED, 'role admin cant be edited');
+			// }
 			if (!comparePassword(oldPassword, userData.password)) throw createError(StatusCodes.BAD_REQUEST, "Wrong Password");
 			const updateQuery = {};
 			if (newPassword) Object.assign(updateQuery, { password: hashPassword(newPassword) });
@@ -154,9 +154,12 @@ class UserController {
 	}
 	static async resetPassword(req, res, next) {
 		try {
-      		const userData = await user.findOne({
+			if (req.UserData.role !== 'admin') {
+				throw createError(StatusCodes.UNAUTHORIZED, 'must be an admin');
+			}
+			const userData = await user.findOne({
 				where: {
-					id: req.UserData.id,
+					id: req.params.id,
 				},
 			});
 			if (userData.role === 'admin') {
@@ -166,10 +169,10 @@ class UserController {
 				password: hashPassword('123456')
 			}, {
 				where: {
-					id: req.UserData.id,
+					id: req.params.id,
 				}
 			});
-      		res.status(StatusCodes.OK).json({
+			res.status(StatusCodes.OK).json({
 				msg: 'Success',
 			});
 		} catch (err) {
