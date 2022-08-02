@@ -188,6 +188,25 @@ class BarangController {
             next(err);
         }
     }
+
+    static async listLaporan(req, res, next) {
+        try {
+            if (req.UserData.role !== 'helper' && req.UserData.role !== 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            const where = {};
+            if (req.UserData.role === 'helper') {
+                Object.assign(where, {
+                    user_id: req.UserData.id,
+                });
+            }
+            const laporan = await barang_confirm.findAll({
+                where: where,
+                order: [['createdAt', 'DESC']],
+            });
+            res.status(StatusCodes.OK).json(laporan);
+        } catch (err) {
+            next(err);
+        }
+    }
 };
 
 module.exports = BarangController;

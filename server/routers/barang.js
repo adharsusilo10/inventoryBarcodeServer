@@ -8,5 +8,6 @@ router.put('/masuk/:barangId', authentication, BarangController.masukBarang);
 router.put('/keluar/:barangId', authentication, BarangController.keluarBarang);
 router.get('/direktur/list', authentication, BarangController.listToConfirm);
 router.put('/direktur/confirm', authentication, BarangController.confirmBarang);
+router.get('/laporan/list', authentication, BarangController.listLaporan);
 
 module.exports = router;
