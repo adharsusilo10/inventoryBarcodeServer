@@ -4,6 +4,7 @@ const QRCode = require('qrcode');
 const {
     barang,
     barang_confirm,
+    user
 } = require('../models');
 const { Op } = require("sequelize");
 
@@ -201,6 +202,13 @@ class BarangController {
             const laporan = await barang_confirm.findAll({
                 where: where,
                 order: [['createdAt', 'DESC']],
+                include: [{
+                    model: user,
+                    required: true,
+                }, {
+                    model: barang,
+                    required: true,
+                }],
             });
             res.status(StatusCodes.OK).json(laporan);
         } catch (err) {

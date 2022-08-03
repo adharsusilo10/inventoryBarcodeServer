@@ -11,6 +11,8 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       // define association here
+      barang_confirm.belongsTo(models.user, { foreignKey: 'user_id' });
+      barang_confirm.belongsTo(models.barang, { foreignKey: 'barang_id' });
     }
   };
   barang_confirm.init({
