@@ -7,6 +7,7 @@ const {
     user
 } = require('../models');
 const { Op } = require("sequelize");
+const moment = require('moment');
 
 class BarangController {
     static async listBarang(req, res, next) {
@@ -46,6 +47,7 @@ class BarangController {
     static async masukBarang(req, res, next) {
         try {
             if (req.UserData.role === 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            const { jumlah } = req.body;
             const { barangId } = req.params;
             const barangData = await barang.findOne({
                 where: {
@@ -57,7 +59,7 @@ class BarangController {
                 user_id: req.UserData.id,
                 barang_id: barangId,
                 type: 'masuk',
-                jumlah: 1,
+                jumlah: jumlah,
                 status: 'unconfirmed'
             });
             res.status(StatusCodes.OK).json({ msg: 'Success' });
@@ -68,6 +70,7 @@ class BarangController {
     static async keluarBarang(req, res, next) {
         try {
             if (req.UserData.role === 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            const { jumlah } = req.body;
             const { barangId } = req.params;
             const barangData = await barang.findOne({
                 where: {
@@ -79,7 +82,7 @@ class BarangController {
                 user_id: req.UserData.id,
                 barang_id: barangId,
                 type: 'keluar',
-                jumlah: 1,
+                jumlah: jumlah,
                 status: 'unconfirmed'
             });
             res.status(StatusCodes.OK).json({ msg: 'Success' });
@@ -153,7 +156,7 @@ class BarangController {
                     }
                 });
                 if (confirmData.length > 0) {
-                    let jumlahProduk = confirmData.length;
+                    let jumlahProduk = confirmData.reduce((a, b) => a + (b['jumlah'] || 0), 0);
                     if (type === 'masuk') {
                         await barang.update({
                             jumlah_masuk: barangData.jumlah_masuk += jumlahProduk,
@@ -193,7 +196,16 @@ class BarangController {
     static async listLaporan(req, res, next) {
         try {
             if (req.UserData.role !== 'helper' && req.UserData.role !== 'direktur') throw createHttpError(StatusCodes.UNAUTHORIZED, 'invalid role');
+            const { bulan, tahun } = req.query;
             const where = {};
+            if (bulan && tahun) {
+                const date = moment().set('month', bulan - 1).set('year', tahun);
+                Object.assign(where, {
+                    createdAt: {
+                        [Op.between]: [moment(date).startOf('month').toDate(), moment(date).endOf('month').toDate()],
+                      },
+                });
+            }
             if (req.UserData.role === 'helper') {
                 Object.assign(where, {
                     user_id: req.UserData.id,

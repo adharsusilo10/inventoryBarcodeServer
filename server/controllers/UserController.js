@@ -6,6 +6,8 @@ const { StatusCodes } = require('http-status-codes');
 const { comparePassword, hashPassword } = require("../helpers/bcrypt");
 const { generateToken } = require("../helpers/jwt");
 const { Op } = require("sequelize");
+const { sendInBlueApiInstance, sendSmtpEmail } = require('../helpers/sendInBlue');
+const { verifyToken } = require('../helpers/jwt');
 
 class UserController {
 	static async loginUser(req, res, next) {
@@ -29,8 +31,8 @@ class UserController {
 			if (req.UserData.role !== 'admin') {
 				throw createError(StatusCodes.UNAUTHORIZED, 'must be an admin');
 			}
-			const { username, nama, role } = req.body;
-			if (!username || !nama || !role) throw createError(StatusCodes.BAD_REQUEST, "Fill in all required fields");
+			const { username, nama, role, email } = req.body;
+			if (!username || !nama || !role || !email) throw createError(StatusCodes.BAD_REQUEST, "Fill in all required fields");
 			const userValidation = await user.findOne({ where: { username } });
 			if (userValidation) throw createError(StatusCodes.BAD_REQUEST, "Username Already Taken");
 			if (role === 'admin') throw createError(StatusCodes.BAD_REQUEST, 'Cannot make admin');
@@ -40,6 +42,7 @@ class UserController {
 				username: username,
 				password: hashPassword('123456'),
 				role: role,
+				email: email,
 			});
 			res.status(StatusCodes.CREATED).json({ msg: 'Success' });
 		} catch (err) {
@@ -177,6 +180,50 @@ class UserController {
 			});
 		} catch (err) {
 			next(err);
+		}
+	}
+
+	static async forgotPasswordEmail(req, res, next) {
+		try {
+			const { username } = req.params;
+			const userData = await user.findOne({
+				where: {
+					username: username,
+				}
+			});
+			if (!userData) throw createError(StatusCodes.NOT_FOUND, 'username not found');
+			if (userData.role === 'admin') {
+				throw createError(StatusCodes.UNAUTHORIZED, 'not authorized');
+			}
+			sendSmtpEmail.templateId = 1;
+			sendSmtpEmail.sender = {"name":"mWarehouse","email":"adharsusilo25@gmail.com"};
+			sendSmtpEmail.to = [{"email":userData.email,"name":userData.nama}];
+			const token = generateToken({ id: userData.id });
+			sendSmtpEmail.params = { 'reset_link': `https://inv.adharsusilo.com/users/forgot/${token}` };
+			await sendInBlueApiInstance.sendTransacEmail(sendSmtpEmail);
+			res.status(StatusCodes.OK).json({ msg: 'Success' });
+		} catch (err) {
+			next(err);
+		}
+	}
+
+	static async forgotPassword(req, res, next) {
+		try {
+			const { token } = req.params;
+			const decoded = verifyToken(token);
+			const registeredUser = await user.findOne({ where: { id: decoded.id } });
+			if (!registeredUser) throw createError(StatusCodes.UNAUTHORIZED, 'Wrong Link');
+			await user.update({
+				password: hashPassword('123456')
+			}, {
+				where: {
+					id: registeredUser.id,
+				}
+			});
+			res.status(StatusCodes.OK).send('Reset Password Success');
+		} catch (err) {
+			console.log('test');
+			res.status(StatusCodes.BAD_REQUEST).send('Wrong Link');
 		}
 	}
 };
